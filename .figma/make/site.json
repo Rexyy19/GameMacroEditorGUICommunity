@@ -1,0 +1,10 @@
+{
+  "description": "Create and customize game macros easily with an intuitive GUI, enhancing gameplay efficiency for gamers of all skill levels.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
