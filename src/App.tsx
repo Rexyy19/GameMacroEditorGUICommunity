@@ -52,6 +52,81 @@ function normalizeMouseButton(btn: number): string {
   return map[btn] ?? `Mouse${btn}`
 }
 
+const INTERVAL_PRESETS = [100,200,300,400,500,600,700,800,900,1000]
+
+function IntervalInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex', width: 110 }}>
+      <input
+        type="number"
+        min={50}
+        max={99999}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ ...INPUT_STYLE, width: '100%', borderRadius: '6px 0 0 6px', borderRight: 'none' }}
+      />
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: '#111827',
+          border: '1px solid #1f2937',
+          borderRadius: '0 6px 6px 0',
+          color: '#94a3b8',
+          cursor: 'pointer',
+          padding: '0 6px',
+          fontSize: 10,
+          lineHeight: 1,
+        }}
+      >▾</button>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          zIndex: 100,
+          background: '#111827',
+          border: '1px solid #1f2937',
+          borderRadius: 6,
+          marginTop: 2,
+          minWidth: '100%',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+          overflow: 'hidden',
+        }}>
+          {INTERVAL_PRESETS.map(v => (
+            <div
+              key={v}
+              onClick={() => { onChange(v); setOpen(false) }}
+              style={{
+                padding: '6px 12px',
+                fontSize: 12,
+                color: value === v ? '#38bdf8' : '#cbd5e1',
+                background: value === v ? 'rgba(56,189,248,0.08)' : 'transparent',
+                cursor: 'pointer',
+                fontFamily: 'JetBrains Mono, monospace',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+              onMouseLeave={e => (e.currentTarget.style.background = value === v ? 'rgba(56,189,248,0.08)' : 'transparent')}
+            >
+              {v} ms
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function KeyCapture({
   value,
   onChange,
@@ -144,10 +219,12 @@ function MacroTable({
   rows,
   onChange,
   showSkillKey,
+  showInterval = true,
 }: {
   rows: MacroRow[]
   onChange: (rows: MacroRow[]) => void
   showSkillKey: boolean
+  showInterval?: boolean
 }) {
   const update = (id: number, patch: Partial<MacroRow>) =>
     onChange(rows.map(r => (r.id === id ? { ...r, ...patch } : r)))
@@ -157,7 +234,7 @@ function MacroTable({
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid #1f2937' }}>
-            {['#', 'Hotkey', ...(showSkillKey ? ['Skill Key'] : []), 'Interval (ms)', ''].map(h => (
+            {['#', 'Hotkey', ...(showSkillKey ? ['Skill Key'] : []), ...(showInterval ? ['Interval (ms)'] : []), ''].map(h => (
               <th
                 key={h}
                 style={{
@@ -220,27 +297,11 @@ function MacroTable({
               )}
 
               {/* Interval */}
-              <td style={{ padding: '7px 8px', width: 130 }}>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <select
-                    value={INTERVAL_OPTIONS.includes(row.interval) ? row.interval : ''}
-                    onChange={e => update(row.id, { interval: Number(e.target.value) })}
-                    style={{ background: '#111827', color: '#e2e8f0', border: '1px solid #1f2937', borderRadius: 6, padding: '4px 8px', fontSize: 12, fontFamily: 'Inter, sans-serif', width: 90, outline: 'none', cursor: 'pointer' }}
-                  >
-                    {INTERVAL_OPTIONS.map(v => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min={50}
-                    max={99999}
-                    value={row.interval}
-                    onChange={e => update(row.id, { interval: Number(e.target.value) })}
-                    style={{ ...INPUT_STYLE, width: 60 }}
-                  />
-                </div>
-              </td>
+              {showInterval && (
+                <td style={{ padding: '7px 8px', width: 160 }}>
+                  <IntervalInput value={row.interval} onChange={v => update(row.id, { interval: v })} />
+                </td>
+              )}
 
               {/* Enable toggle */}
               <td style={{ padding: '7px 10px', width: 40 }}>
@@ -318,7 +379,7 @@ function GeneralTab() {
     </button>
   )
 
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  const Row = ({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) => (
     <div
       style={{
         display: 'flex',
@@ -327,6 +388,7 @@ function GeneralTab() {
         padding: '10px 0',
         borderBottom: '1px solid #0f172a',
         gap: 16,
+        ...style,
       }}
     >
       <span style={{ fontSize: 13, color: '#94a3b8' }}>{label}</span>
@@ -347,26 +409,8 @@ function GeneralTab() {
       <Row label="Pause / Resume Key">
         <KeyCapture value={pauseKey} onChange={setPauseKey} />
       </Row>
-      <Row label="Macro Speed (%)">
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            type="range"
-            min={10}
-            max={200}
-            value={speed}
-            onChange={e => setSpeed(Number(e.target.value))}
-            style={{ flex: 1, accentColor: '#0284c7' }}
-          />
-          <span style={{ fontSize: 12, color: '#38bdf8', fontFamily: 'JetBrains Mono, monospace', width: 36, textAlign: 'right' }}>
-            {speed}%
-          </span>
-        </div>
-      </Row>
       <Row label="Start macros on launch">
         <Toggle on={startOnLaunch} set={setStartOnLaunch} />
-      </Row>
-      <Row label="Always on top">
-        <Toggle on={topmost} set={setTopmost} />
       </Row>
     </div>
   )
@@ -445,9 +489,21 @@ export default function App() {
             Macro Settings
           </span>
           <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', gap: 6 }}>
-            {['#374151', '#374151', '#374151'].map((c, i) => (
-              <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { title: 'Minimize', symbol: '−' },
+              { title: 'Maximize', symbol: '⤢' },
+              { title: 'Close', symbol: '×' },
+            ].map(({ title, symbol }) => (
+              <button
+                key={title}
+                title={title}
+                style={{ width: 26, height: 18, borderRadius: 4, background: '#1e293b', border: '1px solid #334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#475569', padding: 0, transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#334155'; e.currentTarget.style.color = '#e2e8f0' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.color = '#475569' }}
+              >
+                {symbol}
+              </button>
             ))}
           </div>
         </div>
@@ -503,7 +559,7 @@ export default function App() {
           )}
 
           {tab === 'Hold Macro' && (
-            <MacroTable rows={holdRows} onChange={setHoldRows} showSkillKey={false} />
+            <MacroTable rows={holdRows} onChange={setHoldRows} showSkillKey={true} showInterval={false} />
           )}
 
           {tab === 'Auto Skill' && (
